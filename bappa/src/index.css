@@ -1,0 +1,19 @@
+
+/* Reset global margin and padding */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Roboto+Slab:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Roboto", serif;
+    font-optical-sizing: auto;
+   
+  }
+  
+  /* Ensure full height for the body */
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* Optional: Prevents scrollbars */
+  }
+  

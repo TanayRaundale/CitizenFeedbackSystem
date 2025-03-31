@@ -1,0 +1,42 @@
+1.users table
+
+CREATE TABLE users (
+    adhar_no VARCHAR(12) PRIMARY KEY,              -- Aadhar number (now the primary key)
+    name VARCHAR(50) NOT NULL,           -- Username
+    email VARCHAR(100) NOT NULL UNIQUE,             -- Email address
+    password VARCHAR(255) NOT NULL,                 -- Hashed password (store the hash)
+    address TEXT NOT NULL                         -- User address
+ 
+);
+
+
+2.Admin Table
+
+CREATE TABLE admins (
+    admin_id INT AUTO_INCREMENT PRIMARY KEY,       -- Primary Key for the admin
+    department_id INT NOT NULL,                     -- Foreign Key to departments table
+    password VARCHAR(255) NOT NULL,                 -- Hashed password (store the hash)
+    FOREIGN KEY (department_id) REFERENCES departments(department_id)
+);
+
+3.Department Table
+
+CREATE TABLE departments (
+    dept_id INT AUTO_INCREMENT PRIMARY KEY,        -- Primary Key for the department
+    dept_name VARCHAR(100) NOT NULL,                -- Department name
+    CONSTRAINT dept_id_min CHECK (dept_id > 100)   -- Ensures dept_id starts from 100
+);
+
+
+4.Feedback Table
+
+CREATE TABLE feedback (
+    fed_id INT AUTO_INCREMENT PRIMARY KEY,        -- Primary Key for the feedback
+    status ENUM('Pending', 'Resolved', 'In Progress') DEFAULT 'Pending', -- Feedback status
+    admin_id INT NOT NULL,                         -- Foreign Key to admins table
+    dept_id INT NOT NULL,                          -- Foreign Key to departments table
+    feedback_description TEXT NOT NULL,            -- The actual feedback message
+    FOREIGN KEY (admin_id) REFERENCES admins(admin_id),
+    FOREIGN KEY (dept_id) REFERENCES departments(department_id)
+);
+
