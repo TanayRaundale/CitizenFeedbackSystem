@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from enum import Enum
-
+from datetime import datetime
 # ✅ Enum for Feedback Status
 class FeedbackStatus(str, Enum):
     Pending = "Pending"
@@ -10,16 +10,22 @@ class FeedbackStatus(str, Enum):
 # ✅ Feedback Schema
 class FeedbackCreate(BaseModel):
     dept_name: str
-    adhar_no: str  # 🔥 Changed adhar_no to str for consistency
-    feedback_description: str  
+    adhar_no: str  # Changed adhar_no to str for consistency
+    feedback_description: str
+    latitude: float  # Latitude is now required
+    longitude: float  # Longitude is now required
+
 
 class FeedbackResponse(BaseModel):
     fed_id: int
     status: FeedbackStatus
     admin_id: int
     dept_id: int
-    adhar_no: str  # 🔥 Added missing field
+    adhar_no: str  # ✅ Ensures Aadhar number is included
     feedback_description: str  
+    fed_date: datetime  # ✅ Keeps track of submission date
+    latitude: float  # 📍 Mandatory Latitude
+    longitude: float  # 📍 Mandatory Longitude
 
     class Config:
         from_attributes = True

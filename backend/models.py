@@ -1,7 +1,9 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum,Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from schemas import FeedbackStatus
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, DateTime
 
 Base = declarative_base()
 
@@ -38,7 +40,12 @@ class Feedback(Base):
     fed_id = Column(Integer, primary_key=True, autoincrement=True)
     status = Column(Enum(FeedbackStatus, native_enum=False), default=FeedbackStatus.Pending, nullable=False)
     feedback_description = Column(Text, nullable=False)
+    fed_date = Column(DateTime, default=datetime.utcnow, nullable=False)  # ✅ Keeps track of submission time
 
     adhar_no = Column(String(12), ForeignKey("users.adhar_no", ondelete="CASCADE"), nullable=False)
     admin_id = Column(Integer, ForeignKey("admins.admin_id", ondelete="CASCADE"), nullable=False)
     dept_id = Column(Integer, ForeignKey("departments.dept_id", ondelete="CASCADE"), nullable=False)
+
+    # 📍 Added location fields (for Google Maps)
+    latitude = Column(Float, nullable=True)   # ✅ Stores GPS latitude
+    longitude = Column(Float, nullable=True)  # ✅ Stores GPS longitude

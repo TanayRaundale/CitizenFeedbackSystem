@@ -1,16 +1,18 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func  # Import func from SQLAlchemy
 from database import SessionLocal, engine
 from models import Admin, Department, User, Feedback, Base
 from schemas import (
     AdminCreate, AdminResponse, DepartmentCreate, DepartmentResponse,
-    UserCreate, UserResponse, LoginRequest, AdminLoginRequest, TokenResponse, 
+    UserCreate, UserResponse, LoginRequest, AdminLoginRequest, TokenResponse,
     FeedbackResponse, FeedbackCreate, FeedbackStatus
 )
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 
 app = FastAPI()
 
@@ -92,17 +94,17 @@ def admin_login(login_data: AdminLoginRequest, db: Session = Depends(get_db)):
     admin = db.query(Admin).filter(Admin.email == login_data.email).first()
     if not admin or admin.password != login_data.password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    
+
     access_token = create_access_token(data={"sub": str(admin.admin_id)})
-    
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "admin_id": admin.admin_id  # ✅ Returning admin_id
+        "admin_id": admin.admin_id   # ✅ Returning admin_id
     }
 
 # ✅ Fetch All Departments
-@app.get("/departments", response_model=list[DepartmentResponse])
+@app.get("/departments", response_model=List[DepartmentResponse])
 def get_departments(db: Session = Depends(get_db)):
     return db.query(Department).all()
 
@@ -112,40 +114,130 @@ def update_feedback_status(feedback_id: int, status_update: dict, admin: Admin =
     feedback = db.query(Feedback).filter(Feedback.fed_id == feedback_id, Feedback.admin_id == admin.admin_id).first()
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found or not assigned to this admin")
-    
+
     feedback.status = status_update["status"]
     db.commit()
     return {"message": "Feedback status updated successfully"}
 
+
+@app.delete("/admin/feedbacks/{fed_id}")
+def delete_feedback(fed_id: int, db: Session = Depends(get_db)):
+    feedback = db.query(Feedback).filter(Feedback.fed_id == fed_id).first()
+
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
+    db.delete(feedback)
+    db.commit()
+
+    return {"message": "Feedback deleted successfully"}
+
+@app.get("/admin/feedbacks/{fed_id}", response_model=FeedbackResponse)
+def get_feedback(fed_id: int, db: Session = Depends(get_db), admin: dict = Depends(get_current_admin)):
+    feedback = db.query(Feedback).filter(Feedback.fed_id == fed_id).first()
+
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
+    return feedback
 # ✅ Submit Feedback
 @app.post("/submitfeedback")
 def submit_feedback(feedback_data: FeedbackCreate, db: Session = Depends(get_db)):
     department = db.query(Department).filter(Department.dept_name == feedback_data.dept_name).first()
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
+
     admin = db.query(Admin).filter(Admin.dept_id == department.dept_id).first()
     if not admin:
         raise HTTPException(status_code=404, detail="No admin found for this department")
+
     new_feedback = Feedback(
         status=FeedbackStatus.Pending,
         adhar_no=feedback_data.adhar_no,
         dept_id=department.dept_id,
         feedback_description=feedback_data.feedback_description,
-        admin_id=admin.admin_id
+        admin_id=admin.admin_id,
+        latitude=feedback_data.latitude,   # Store latitude
+        longitude=feedback_data.longitude   # Store longitude
     )
+
     db.add(new_feedback)
     db.commit()
     db.refresh(new_feedback)
+
     return {"message": "Feedback submitted successfully", "feedback_id": new_feedback.fed_id}
 
-@app.get("/admin/feedbacks", response_model=list[FeedbackResponse])
+
+@app.get("/admin/feedbacks", response_model=List[FeedbackResponse])
 def get_admin_feedbacks(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     feedbacks = db.query(Feedback).filter(Feedback.admin_id == admin.admin_id).all()
     if not feedbacks:
         raise HTTPException(status_code=404, detail="No feedbacks found")
     return feedbacks
 
+
+
+@app.post("/usersignup")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if Aadhar number or email already exists
+    existing_user = db.query(User).filter((User.adhar_no == user.adhar_no) | (User.email == user.email)).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Aadhar number or email already registered")
+
+    # Store user directly in the database
+    new_user = User(
+        adhar_no=user.adhar_no,
+        name=user.name,
+        email=user.email,
+        password=user.password,   # Plain text password (⚠️ Not recommended)
+        address=user.address
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"message": "User registered successfully", "adhar_no": new_user.adhar_no}
 # ✅ Root Endpoint
+
+
 @app.get("/")
 def read_root():
     return {"message": "Citizen Feedback Management System"}
+
+
+@app.get("/admin/analysis")
+def get_feedback_analysis(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
+
+
+    total_feedbacks = db.query(Feedback).filter(Feedback.admin_id == admin.admin_id).count()
+
+    if total_feedbacks == 0:
+        return {
+            "Pending": 0,
+            "Resolved": 0,
+            "InProgress": 0,
+        }
+
+    pending_count = db.query(Feedback).filter(
+        Feedback.admin_id == admin.admin_id,
+        Feedback.status == FeedbackStatus.Pending
+    ).count()
+    resolved_count = db.query(Feedback).filter(
+        Feedback.admin_id == admin.admin_id,
+        Feedback.status == FeedbackStatus.Resolved
+    ).count()
+    inprogress_count = db.query(Feedback).filter(
+        Feedback.admin_id == admin.admin_id,
+        Feedback.status == FeedbackStatus.InProgress
+    ).count()
+
+    pending_percentage = (pending_count / total_feedbacks) * 100
+    resolved_percentage = (resolved_count / total_feedbacks) * 100
+    inprogress_percentage = (inprogress_count / total_feedbacks) * 100
+
+    return {
+        "Pending": round(pending_percentage, 2),
+        "Resolved": round(resolved_percentage, 2),
+        "InProgress": round(inprogress_percentage, 2),
+    }
